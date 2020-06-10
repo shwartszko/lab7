@@ -69,6 +69,7 @@ uint32_t is_frame_ready = 0;
 Ethernet_res frame_res;
 uint32_t timeout = 0;
 Ethernet_req* temp = NULL;
+Ethernet_req* temp2;
 uint8_t PSN = 0;
 uint8_t ACK = 0;
 uint32_t sub_LLC_struct_ready = 0;
@@ -122,34 +123,40 @@ void sub_LLC()
 	int i;
 	static uint32_t ACK_received = 1;
 	static uint32_t new = 1; //should be zero just for yoffi
-	if(is_frame_ready) //Rx MAC frame ready
+	if(is_frame_ready) //frame for Rx MAC ready
 	{
+		is_frame_ready = 0;
+		//printf("\r\nframe ready");
 		if(frame_res.typeLength[0] == 0x08 && frame_res.typeLength[1] == 0x88) //type - new
 		{
+			//printf(":type-new");
 			if(frame_res.payload[0]) //ACK frame
 			{
 				ACK_received = 1;
-				//stop timer
+				HAL_TIM_Base_Stop_IT(&htim2);
 				printf("\r\nACK of frame %d was received.\r\n",1-frame_res.payload[1]);
+				//sub_ready_for_LLC_Rx = 1;
 			}
 			else //data frame
 			{
+				//printf(":data frame received,sending ACK");
 				ACK = 1;
 				sub_LLC_struct_ready = 1;
 				sub_ready_for_LLC_Rx = 1;
 				for(i = 0; i < 8; i++)
 				{
-					temp->destinationMac[i] = temp->sourceMac[i];
-					temp->sourceMac[i] = myMAC[i]; //looks suspicious but it's good trust					
+					temp2->destinationMac[i] = temp->sourceMac[i];
+					temp2->sourceMac[i] = myMAC[i]; //looks suspicious but it's good trust					
 				}
 			}
 		}
 		else //type - old
 		{
+			//printf(":type-old");
 			sub_ready_for_LLC_Rx = 1;
 		}
 	}
-	if(ACK_received || !new) //first packet or packet after receiving ACK
+	if(ACK_received || !new) //first packet or packet after receiving ACK or old packets 
 	{
 		if(temp)
 			{//in the end of using 'temp' you have to free memory:
@@ -158,6 +165,7 @@ void sub_LLC()
 			}
 		if(isNewTxRequest())
 		{
+			//printf(":new Tx req");
 			temp = getTxRequeset();
 			//new = RANDOM;
 			if(new) 
@@ -167,9 +175,8 @@ void sub_LLC()
 				ACK_received = 0;
 				PSN = 1 - PSN;
 				ACK = 0;
-				//TO DO: start timer
 			}
-			else
+			else //sending old packet 
 			{
 				ACK = 0;
 				temp->typeLength[1] = temp->typeLength[0] = 0;
@@ -179,8 +186,7 @@ void sub_LLC()
 	}
 	else if(!ACK_received && timeout)
 	{
-		sub_LLC_struct_ready = 1;
-		//TO DO: start timer
+		sub_LLC_struct_ready = 1; //sending the lost packet 
 	}
 		
 }
@@ -192,8 +198,11 @@ extern uint8_t getByte(void); 											//get byte from phy, it's mandatory to 
 void LLC_RX()
 {
 	uint32_t i;
+	uint32_t is_new = 0;
 	if(sub_ready_for_LLC_Rx)
 	{
+		is_new = frame_res.typeLength[0] == 0x08 && frame_res.typeLength[1] == 0x88;
+		sub_ready_for_LLC_Rx = 0;
 		printf("\r\nReceived a new frame\r\n");
 		switch(frame_res.syndrom)
 		{
@@ -208,11 +217,11 @@ void LLC_RX()
 				{
 					printf("%x",frame_res.sourceMac[i]);
 				}
-				printf("\r\nPayload is: ");
-				for(i = 0; i < frame_res.payloadSize[0] + frame_res.payloadSize[1]*256; i++)
+				printf("\r\nPayload is: ");  
+				for(i = 0; i < frame_res.payloadSize[0] + frame_res.payloadSize[1]*256+2*(is_new); i++)
 				{
-					if(frame_res.typeLength[0] == 0x08 && frame_res.typeLength[1] == 0x88) //type - new
-						i=2;
+					if(is_new && i == 0) //type - new
+					{	i=2;}
 					printf("%c", frame_res.payload[i]);
 				}
 				printf("\r\n\r\n");
@@ -230,7 +239,6 @@ void LLC_RX()
 				printf("\nOh no, We can't beleive this. Bibi is still prime minister? also CRC wasn't valid..\r\n\r\n");
 				break;	
 		}
-		is_frame_ready = 0;
 		free((void*)frame_res.payload);
 	}
 }
@@ -288,6 +296,7 @@ void MAC_RX()
 			{
 				rx_frame[0] = getByte();
 				rx_frame_counter++;
+				//printf("\r\n0::%x, ",rx_frame[0]);
 			}
 			else
 			{
@@ -295,6 +304,7 @@ void MAC_RX()
 				{
 					byte = getByte();
 					rx_frame[rx_frame_counter] = byte;
+					//printf("%d::%x, ",rx_frame_counter,rx_frame[rx_frame_counter]);
 					rx_frame_counter++;
 				}
 				else
@@ -304,9 +314,11 @@ void MAC_RX()
 					rx_frame_counter = 0;
 					is_frame_ready = 1;
 				}
+				//printf("\r\n16:%x,17:%x",rx_frame[16+8],rx_frame[8+17]);
 			}
 			//HAL_TIM_Base_Start_IT(&htim2);
 			timer_on = 1;
+			int c = 1;
 		}		
 	}
 	else
@@ -315,8 +327,9 @@ void MAC_RX()
 			timer++;
 	}
 	
-	if(timer == 10000) //start buliding the frame
+	if(timer == 10000) //start buliding the struct
 	{
+		//printf("\r\nstart building the frame;");
 		timer = 0;
 		timer_on = 0;
 		//HAL_TIM_Base_Stop_IT(&htim2);
@@ -329,9 +342,17 @@ void MAC_RX()
 		{
 			hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
 			Rx_CRC_res = HAL_CRC_Calculate(&hcrc,(uint32_t*)&rx_frame[0],1);
+			//printf("0;");
 			frame_res.destinationMac[0] = rx_frame[0];
+			//if(ACK)
+				//printf("0:%x,",rx_frame[0]);
 			for(i = 1; i<rx_frame_counter - 4; i++) //crc calc + constructing the frame
 			{
+				if(ACK)	
+				{
+					//printf("%d:%x,",i,rx_frame[i]);
+					//printf("%d;",i);
+				}
 				Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[i],1);
 				if(i >= 1 && i <= 5) //destination address
 					frame_res.destinationMac[i] = rx_frame[i];
@@ -349,7 +370,19 @@ void MAC_RX()
 					frame_res.payload = (uint8_t*)malloc(data_size*sizeof(uint8_t));
 					frame_res.payload[0] = rx_frame[18]; //ACK
 					frame_res.payload[1] = rx_frame[19]; //PSN
-					i=19; 
+					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[17],1);
+					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[18],1);
+					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[19],1);
+					i=19;
+					if(ACK)
+					{
+						//printf("17;");
+						//printf("18;");
+						//printf("19;");
+						//printf("17:%x,",rx_frame[17]);
+						//printf("18:%x,",rx_frame[18]);
+						//printf("19:%x,",rx_frame[19]);
+					}
 				}
 				else if(i >= 16 && i <= 17) //payload size , type - old
 				{
@@ -364,12 +397,15 @@ void MAC_RX()
 				}	
 			}
 			Tx_CRC_res = rx_frame[rx_frame_counter-4] + rx_frame[rx_frame_counter-3]*256 + rx_frame[rx_frame_counter-2]*65536 + rx_frame[rx_frame_counter-1]*(2^24); 
+			//if(ACK)
+			//	printf("tx:%c, rx:%c", Tx_CRC_res, Rx_CRC_res);
 			if(Tx_CRC_res != Rx_CRC_res) 
 			{
+				//printf(":crc error:");
 				frame_ended = 0;
 				frame_res.syndrom = CRC_ERROR;
 			}
-			else if(data_size > 1498)
+			else if(data_size > 1498) //ze mamash lo meshane
 			{
 				frame_res.syndrom = PAYLOAD_LENGTH_ERROR;
 			}
@@ -389,7 +425,7 @@ extern uint8_t isNewTxRequest(void); 								//check if the upper_layer sent us 
 extern Ethernet_req* getTxRequeset(void);						//get from upper_layer data to transmit, it's mandatory to use "isNewTxRequest()" before call this function.
 //Important! - after finish using the Ethernet_req struct, you have to free it and also free the Ethernet_req.payload.
 
-void MAC_TX() 
+void MAC_TX() //payload size msb sent first
 {
 	static uint8_t* frame;
 	static uint32_t timer_on = 0;
@@ -399,15 +435,17 @@ void MAC_TX()
 	static uint32_t CRC_res = 0;
 	static uint32_t tx_ready_to_send = 0;
 	static uint32_t kaki = 26;
+	static uint32_t first_of_frame = 0;
 	uint32_t j = 0;
 	if (sub_LLC_struct_ready && gap_time_passed)
 	{
+		sub_LLC_struct_ready = 0;
 		if(timer_on)
 		{
 			HAL_TIM_Base_Stop_IT(&htim3);
 			timer_on = 0;
 		}
-		data_size = temp->payloadSize[0] + (temp->payloadSize[1]*256);
+		data_size = ACK == 0? (temp->payloadSize[0] + (temp->payloadSize[1]*256)+4) : 0;
 		if(data_size < 42)
 		{
 			frame = (uint8_t *)malloc(72*sizeof(uint8_t));
@@ -430,7 +468,7 @@ void MAC_TX()
 			}
 			else if(i >=8 && i <= 13) //destination Mac be hearot 
 			{
-				frame[i] = temp->destinationMac[i-8];
+				frame[i] = ACK == 0? (temp->destinationMac[i-8]) : (temp2->destinationMac[i-8]);
 				if(i==8) 
 					CRC_res = HAL_CRC_Calculate(&hcrc,(uint32_t*)&frame[i],1);
 				else
@@ -448,7 +486,7 @@ void MAC_TX()
 			}
 			else if(i == 24) //Length
 			{
-				if(frame_res.typeLength[0] == 0x08 && frame_res.typeLength[1] == 0x88) //type - new
+				if(temp->typeLength[0] == 0x08 && temp->typeLength[1] == 0x88) //type - new
 				{
 					frame[i] = 0x88;
 				}
@@ -460,7 +498,7 @@ void MAC_TX()
 			}
 			else if(i == 25) //Length
 			{
-				if(frame_res.typeLength[0] == 0x08 && frame_res.typeLength[1] == 0x88) //type - new
+				if(temp->typeLength[0] == 0x08 && temp->typeLength[1] == 0x88) //type - new
 				{
 					frame[i] = 0x08;
 				}
@@ -470,14 +508,21 @@ void MAC_TX()
 				}
 				CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&frame[i],1); //maybe frame[i-1]
 			}
+			else if(ACK && i == 26)
+			{
+				frame[i] = ACK;
+				frame[i+1] = PSN;
+				frame[i+2] = frame[i+3] = 0;
+				i = 29;
+			}
 			else if(i >=26 && i < 26+data_size)
 			{
-				if(frame_res.typeLength[0] == 0x08 && frame_res.typeLength[1] == 0x88 && i == 26) //type - new
+				if(temp->typeLength[0] == 0x08 && temp->typeLength[1] == 0x88 && i == 26) //type - new
 				{
 					frame[i] = ACK;	
 					frame[i+1] = PSN;
-					frame[i+2] = temp->payloadSize[1];
-					frame[i+3] = temp->payloadSize[0];
+					frame[i+2] = (temp->payloadSize[1]);
+					frame[i+3] = (temp->payloadSize[0]);
 					CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&frame[i],1);
 					CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&frame[i+1],1);
 					CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&frame[i+2],1);
@@ -501,7 +546,7 @@ void MAC_TX()
 				frame[27+frame_size] = CRC_res & 0xFF00;
 				frame[28+frame_size] = CRC_res & 0xFF0000;
 				frame[29+frame_size] = CRC_res & 0xFF000000; //msb last
-				i=frame_size + 30;
+				i=frame_size + 29;
 			}
 			
 		}
@@ -510,22 +555,34 @@ void MAC_TX()
 		i=0;
 		
 	}
+	
 	if(tx_ready_to_send && isPhyTxReady() && i < frame_size+30)
 	{
+		if(first_of_frame && temp->typeLength[0] == 0x08 && temp->typeLength[1] == 0x88&&!ACK)
+		{
+			HAL_TIM_Base_Start_IT(&htim2);
+			first_of_frame = 0;
+			//printf("\r\n");
+		}
 		sendByte(frame[i]);
+		//if(ACK)
+		printf("%d:%x,",i,frame[i]);
 		i++;
 	}
 	if(i == frame_size+30)
 	{
+		printf("---");
 		free(frame);
 		frame_size = 0;
 		data_size = 0;
 		CRC_res = 0;
 		i = 0;
+		kaki = 26;
 		tx_ready_to_send = 0;
 		gap_time_passed = 0;
 		HAL_TIM_Base_Start_IT(&htim3);
 		timer_on = 1;
+		first_of_frame = 1;
 	}
 	
 }
@@ -579,6 +636,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+	temp2 = (Ethernet_req*)malloc(sizeof(Ethernet_req));
+	temp2->payloadSize[0] = temp2->payloadSize[1] = 0;
+	temp2->typeLength[0] = 0x08; 
+	temp2->typeLength[1] = 0x88; 
   while (1)
   {
 		//DLL functions - DO NOT TOUCH
@@ -586,6 +647,7 @@ int main(void)
 		printer();
 		DEBUG;
 		//End Of DLL functions
+		sub_LLC();
 		MAC_TX(); //MY FUNCTIONS - DO NO TOUCH, BELEIVE ME ITS WORKS 
 		MAC_RX();
 		LLC_RX();
@@ -701,9 +763,9 @@ static void MX_TIM2_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 359;
+  htim2.Init.Prescaler = 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 999;
+  htim2.Init.Period = 5999999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -736,7 +798,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 719;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1000;
+  htim3.Init.Period = 999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
