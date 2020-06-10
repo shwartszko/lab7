@@ -162,6 +162,7 @@ void sub_LLC()
 			{//in the end of using 'temp' you have to free memory:
 				free((void*)temp->payload);
 				free(temp);
+				temp = NULL;
 			}
 		if(isNewTxRequest())
 		{
