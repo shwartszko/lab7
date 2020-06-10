@@ -133,7 +133,9 @@ void sub_LLC()
 			if(frame_res.payload[0]) //ACK frame
 			{
 				ACK_received = 1;
+				timeout = 0;
 				HAL_TIM_Base_Stop_IT(&htim2);
+				__HAL_TIM_SET_COUNTER(&htim2, 0);
 				printf("\r\nACK of frame %d was received.\r\n",1-frame_res.payload[1]);
 				//sub_ready_for_LLC_Rx = 1;
 			}
@@ -187,8 +189,11 @@ void sub_LLC()
 	}
 	else if(!ACK_received && timeout)
 	{
-		sub_LLC_struct_ready = 1; //sending the lost packet 
+		timeout = 0;
+		HAL_TIM_Base_Stop_IT(&htim2);
+		__HAL_TIM_SET_COUNTER(&htim2, 0);
 		printf("sending lost packet\r\n");
+		sub_LLC_struct_ready = 1; //sending the lost packet 
 	}
 		
 }
@@ -640,7 +645,7 @@ int main(void)
 	printf("Press any key to start\r\n");
 	DllAlive = 1; //DLL is on!
 	__HAL_RCC_CRC_CLK_ENABLE();
-	
+	__HAL_TIM_CLEAR_IT(&htim2 ,TIM_IT_UPDATE);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -772,7 +777,7 @@ static void MX_TIM2_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 1;
+  htim2.Init.Prescaler = 999;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 5999999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
