@@ -188,6 +188,7 @@ void sub_LLC()
 	else if(!ACK_received && timeout)
 	{
 		sub_LLC_struct_ready = 1; //sending the lost packet 
+		printf("sending lost packet\r\n");
 	}
 		
 }
@@ -349,7 +350,7 @@ void MAC_RX()
 				//printf("0:%x,",rx_frame[0]);
 			for(i = 1; i<rx_frame_counter - 4; i++) //crc calc + constructing the frame
 			{
-				if(ACK)	
+				//if(ACK)	
 				{
 					//printf("%d:%x,",i,rx_frame[i]);
 					//printf("%d;",i);
@@ -374,7 +375,9 @@ void MAC_RX()
 					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[17],1);
 					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[18],1);
 					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[19],1);
-					i=19;
+					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[20],1);
+					Rx_CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&rx_frame[21],1);
+					i=21;
 					if(ACK)
 					{
 						//printf("17;");
@@ -392,9 +395,13 @@ void MAC_RX()
 					data_size = rx_frame[17] + rx_frame[16]*256; 
 					frame_res.payload = (uint8_t*)malloc(data_size*sizeof(uint8_t));
 				}
+				else if(i >= 22 && i < 22 + data_size && rx_frame[17] == 0x08 && rx_frame[16] == 0x88)
+				{
+					frame_res.payload[i-20] = rx_frame[i];
+				}
 				else if(i >= 18 && i < 18 + data_size) //data 
 				{
-					 frame_res.payload[i-18] = rx_frame[i];
+					frame_res.payload[i-18] = rx_frame[i];
 				}	
 			}
 			Tx_CRC_res = rx_frame[rx_frame_counter-4] + rx_frame[rx_frame_counter-3]*256 + rx_frame[rx_frame_counter-2]*65536 + rx_frame[rx_frame_counter-1]*(2^24); 
@@ -559,6 +566,7 @@ void MAC_TX() //payload size msb sent first
 	
 	if(tx_ready_to_send && isPhyTxReady() && i < frame_size+30)
 	{
+		//printf("  ");
 		if(first_of_frame && temp->typeLength[0] == 0x08 && temp->typeLength[1] == 0x88&&!ACK)
 		{
 			HAL_TIM_Base_Start_IT(&htim2);
@@ -567,12 +575,12 @@ void MAC_TX() //payload size msb sent first
 		}
 		sendByte(frame[i]);
 		//if(ACK)
-		printf("%d:%x,",i,frame[i]);
+		//printf("%d:%x,",i,frame[i]);
 		i++;
 	}
 	if(i == frame_size+30)
 	{
-		printf("---");
+		//printf("------------------");
 		free(frame);
 		frame_size = 0;
 		data_size = 0;
