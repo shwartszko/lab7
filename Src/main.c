@@ -116,13 +116,13 @@ void debug(void)
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
-
+static uint32_t new = 0; //should be zero just for yoffi
 void sub_LLC()
 {
 	//static uint32_t first = 1;
 	int i;
 	static uint32_t ACK_received = 1;
-	static uint32_t new = 1; //should be zero just for yoffi
+	
 	if(is_frame_ready) //frame for Rx MAC ready
 	{
 		is_frame_ready = 0;
@@ -352,7 +352,7 @@ void MAC_RX()
 			//printf("0;");
 			frame_res.destinationMac[0] = rx_frame[0];
 			//if(ACK)
-				//printf("0:%x,",rx_frame[0]);
+			//printf("0:%x,",rx_frame[0]);
 			for(i = 1; i<rx_frame_counter - 4; i++) //crc calc + constructing the frame
 			{
 				//if(ACK)	
@@ -411,7 +411,7 @@ void MAC_RX()
 			}
 			Tx_CRC_res = rx_frame[rx_frame_counter-4] + rx_frame[rx_frame_counter-3]*256 + rx_frame[rx_frame_counter-2]*65536 + rx_frame[rx_frame_counter-1]*(2^24); 
 			//if(ACK)
-			//	printf("tx:%c, rx:%c", Tx_CRC_res, Rx_CRC_res);
+			printf("tx:%c, rx:%c, Tx_packet size: %d, Rx_packet size: %d\r\n", Tx_CRC_res, Rx_CRC_res, data_size + 22, rx_frame_counter);
 			if(Tx_CRC_res != Rx_CRC_res) 
 			{
 				//printf(":crc error:");
@@ -458,7 +458,7 @@ void MAC_TX() //payload size msb sent first
 			HAL_TIM_Base_Stop_IT(&htim3);
 			timer_on = 0;
 		}
-		data_size = ACK == 0? (temp->payloadSize[0] + (temp->payloadSize[1]*256)+4) : 0;
+		data_size = ACK == 0? (temp->payloadSize[0] + (temp->payloadSize[1]*256)+4*new) : 0;
 		if(data_size < 42)
 		{
 			frame = (uint8_t *)malloc(72*sizeof(uint8_t));
@@ -505,7 +505,7 @@ void MAC_TX() //payload size msb sent first
 				}
 				else
 				{
-					frame[i+1] = temp->payloadSize[0]; 
+					frame[i] = temp->payloadSize[1]; 
 				}
 				CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&frame[i],1); //maybe frame[i+1]
 			}
@@ -517,7 +517,7 @@ void MAC_TX() //payload size msb sent first
 				}
 				else
 				{
-					frame[i-1] = temp->payloadSize[1];
+					frame[i] = temp->payloadSize[0];
 				}
 				CRC_res = HAL_CRC_Accumulate(&hcrc,(uint32_t*)&frame[i],1); //maybe frame[i-1]
 			}

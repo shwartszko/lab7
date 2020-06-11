@@ -3,7 +3,7 @@
 <title>Static Call Graph - [DLL\DLL.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image DLL\DLL.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Wed Jun 10 22:24:47 2020
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Thu Jun 11 12:08:16 2020
 <BR><P>
 <H3>Maximum Stack Usage =        232 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -810,19 +810,20 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[54]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[a2]"></a>MAC_RX</STRONG> (Thumb, 538 bytes, Stack size 32 bytes, main.o(i.MAC_RX))
-<BR><BR>[Stack]<UL><LI>Max Depth = 72<LI>Call Chain = MAC_RX &rArr; HAL_CRC_Calculate &rArr; CRC_Handle_8
+<P><STRONG><a name="[a2]"></a>MAC_RX</STRONG> (Thumb, 556 bytes, Stack size 40 bytes, main.o(i.MAC_RX))
+<BR><BR>[Stack]<UL><LI>Max Depth = 80<LI>Call Chain = MAC_RX &rArr; HAL_CRC_Calculate &rArr; CRC_Handle_8
 </UL>
 <BR>[Calls]<UL><LI><a href="#[6b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_CRC_Calculate
 <LI><a href="#[68]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_CRC_Accumulate
 <LI><a href="#[a3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;isRxByteReady
 <LI><a href="#[a4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;getByte
 <LI><a href="#[a5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;malloc
+<LI><a href="#[a0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__2printf
 </UL>
 <BR>[Called By]<UL><LI><a href="#[54]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[a6]"></a>MAC_TX</STRONG> (Thumb, 660 bytes, Stack size 24 bytes, main.o(i.MAC_TX))
+<P><STRONG><a name="[a6]"></a>MAC_TX</STRONG> (Thumb, 654 bytes, Stack size 24 bytes, main.o(i.MAC_TX))
 <BR><BR>[Stack]<UL><LI>Max Depth = 64<LI>Call Chain = MAC_TX &rArr; HAL_CRC_Calculate &rArr; CRC_Handle_8
 </UL>
 <BR>[Calls]<UL><LI><a href="#[a7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_Base_Stop_IT
@@ -986,6 +987,7 @@ Global Symbols
 </UL>
 <BR>[Called By]<UL><LI><a href="#[c0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;sub_LLC
 <LI><a href="#[54]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
+<LI><a href="#[a2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MAC_RX
 <LI><a href="#[9f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;LLC_RX
 <LI><a href="#[bf]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;printer
 </UL>
