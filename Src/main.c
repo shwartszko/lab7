@@ -44,6 +44,8 @@
 #include <stdlib.h>
 #include "Ethernet.h" 
 #include "template.h" 
+#include <stdio.h>  
+#include <time.h> 
 
 #define DEBUG debug()
 #define CRC_ERROR 100
@@ -116,13 +118,20 @@ void debug(void)
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
-static uint32_t new = 0; //should be zero just for yoffi
+
+int Randoms(int lower, int upper) 
+{  
+					int num = (rand() % (upper - lower + 1)) + lower; 
+					return num;
+} 
+
+static uint32_t is_new = 1; //should be zero just for yoffi
 void sub_LLC()
 {
 	//static uint32_t first = 1;
 	int i;
 	static uint32_t ACK_received = 1;
-	
+	int spy_ben_shel_zona = 0;	
 	if(is_frame_ready) //frame for Rx MAC ready
 	{
 		is_frame_ready = 0;
@@ -154,11 +163,10 @@ void sub_LLC()
 		}
 		else //type - old
 		{
-			//printf(":type-old");
 			sub_ready_for_LLC_Rx = 1;
 		}
 	}
-	if(ACK_received || !new) //first packet or packet after receiving ACK or old packets 
+	if(ACK_received || !is_new) //first packet or packet after receiving ACK or old packets 
 	{
 		if(temp)
 			{//in the end of using 'temp' you have to free memory:
@@ -170,9 +178,19 @@ void sub_LLC()
 		{
 			//printf(":new Tx req");
 			temp = getTxRequeset();
-			//new = RANDOM;
-			if(new) 
+			spy_ben_shel_zona = Randoms(1,3);
+			if(spy_ben_shel_zona == 1)
 			{
+				is_new = 0;
+			}
+			else
+			{
+				is_new = 1;
+			}
+			//is_new = 0;
+			if(is_new) 
+			{
+				printf("\r\n\r\nsending new packet\r\n");
 				temp->typeLength[0] = 0x08;
 				temp->typeLength[1] = 0x88;
 				ACK_received = 0;
@@ -181,8 +199,11 @@ void sub_LLC()
 			}
 			else //sending old packet 
 			{
+				printf("\r\n\r\nsending old packet\r\n");
 				ACK = 0;
-				temp->typeLength[1] = temp->typeLength[0] = 0;
+				ACK_received = 1;
+				temp->typeLength[1] = 0;
+				temp->typeLength[0] = 0;
 			}
 			sub_LLC_struct_ready = 1;
 		}
@@ -192,7 +213,7 @@ void sub_LLC()
 		timeout = 0;
 		HAL_TIM_Base_Stop_IT(&htim2);
 		__HAL_TIM_SET_COUNTER(&htim2, 0);
-		printf("sending lost packet\r\n");
+		//printf("sending lost packet\r\n");
 		sub_LLC_struct_ready = 1; //sending the lost packet 
 	}
 		
@@ -395,6 +416,8 @@ void MAC_RX()
 				}
 				else if(i >= 16 && i <= 17) //payload size , type - old
 				{
+					frame_res.typeLength[0] = 0;
+					frame_res.typeLength[1] = 0;
 					frame_res.payloadSize[0] = rx_frame[17];
 					frame_res.payloadSize[1] = rx_frame[16];
 					data_size = rx_frame[17] + rx_frame[16]*256; 
@@ -411,7 +434,7 @@ void MAC_RX()
 			}
 			Tx_CRC_res = rx_frame[rx_frame_counter-4] + rx_frame[rx_frame_counter-3]*256 + rx_frame[rx_frame_counter-2]*65536 + rx_frame[rx_frame_counter-1]*(2^24); 
 			//if(ACK)
-			printf("tx:%c, rx:%c, Tx_packet size: %d, Rx_packet size: %d\r\n", Tx_CRC_res, Rx_CRC_res, data_size + 22, rx_frame_counter);
+			//printf("tx:%c, rx:%c, Tx_packet size: %d, Rx_packet size: %d\r\n", Tx_CRC_res, Rx_CRC_res, data_size + 22, rx_frame_counter);
 			if(Tx_CRC_res != Rx_CRC_res) 
 			{
 				//printf(":crc error:");
@@ -458,7 +481,7 @@ void MAC_TX() //payload size msb sent first
 			HAL_TIM_Base_Stop_IT(&htim3);
 			timer_on = 0;
 		}
-		data_size = ACK == 0? (temp->payloadSize[0] + (temp->payloadSize[1]*256)+4*new) : 0;
+		data_size = ACK == 0? (temp->payloadSize[0] + (temp->payloadSize[1]*256)+4*is_new) : 0;
 		if(data_size < 42)
 		{
 			frame = (uint8_t *)malloc(72*sizeof(uint8_t));

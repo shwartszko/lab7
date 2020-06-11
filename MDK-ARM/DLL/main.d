@@ -37,3 +37,4 @@ dll\main.o: ../Drivers/STM32F3xx_HAL_Driver/Inc/stm32f3xx_hal_uart_ex.h
 dll\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 dll\main.o: ../Inc/Ethernet.h
 dll\main.o: ../Inc/template.h
+dll\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\time.h
