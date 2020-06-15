@@ -126,6 +126,7 @@ int Randoms(int lower, int upper)
 } 
 
 static uint32_t is_new = 1; //should be zero just for yoffi
+uint32_t again = 0;
 void sub_LLC()
 {
 	//static uint32_t first = 1;
@@ -151,14 +152,17 @@ void sub_LLC()
 			else //data frame
 			{
 				//printf(":data frame received,sending ACK");
-				ACK = 1;
-				sub_LLC_struct_ready = 1;
-				sub_ready_for_LLC_Rx = 1;
-				for(i = 0; i < 8; i++)
+				if(frame_res.syndrom == NO_ERROR)
 				{
-					temp2->destinationMac[i] = temp->sourceMac[i];
-					temp2->sourceMac[i] = myMAC[i]; //looks suspicious but it's good trust					
+					ACK = 1;
+					sub_LLC_struct_ready = 1;
+					for(i = 0; i < 8; i++)
+					{
+						temp2->destinationMac[i] = temp->sourceMac[i];
+						temp2->sourceMac[i] = myMAC[i]; //looks suspicious but it's good trust					
+					}
 				}
+				sub_ready_for_LLC_Rx = 1;
 			}
 		}
 		else //type - old
@@ -187,7 +191,7 @@ void sub_LLC()
 			{
 				is_new = 1;
 			}
-			//is_new = 0;
+			is_new = 1;
 			if(is_new) 
 			{
 				printf("\r\n\r\nsending new packet\r\n");
@@ -208,13 +212,14 @@ void sub_LLC()
 			sub_LLC_struct_ready = 1;
 		}
 	}
-	else if(!ACK_received && timeout)
+	else if(!ACK_received && timeout == 2)
 	{
+		again = 1;
 		timeout = 0;
 		HAL_TIM_Base_Stop_IT(&htim2);
 		__HAL_TIM_SET_COUNTER(&htim2, 0);
-		//printf("sending lost packet\r\n");
-		sub_LLC_struct_ready = 1; //sending the lost packet 
+		printf("sending lost packet\r\n");
+		sub_LLC_struct_ready = 1; //sending the lost packet
 	}
 		
 }
@@ -434,7 +439,7 @@ void MAC_RX()
 			}
 			Tx_CRC_res = rx_frame[rx_frame_counter-4] + rx_frame[rx_frame_counter-3]*256 + rx_frame[rx_frame_counter-2]*65536 + rx_frame[rx_frame_counter-1]*(2^24); 
 			//if(ACK)
-			//printf("tx:%c, rx:%c, Tx_packet size: %d, Rx_packet size: %d\r\n", Tx_CRC_res, Rx_CRC_res, data_size + 22, rx_frame_counter);
+			//printf("tx:%x, rx:%x\r\n", Tx_CRC_res, Rx_CRC_res);
 			if(Tx_CRC_res != Rx_CRC_res) 
 			{
 				//printf(":crc error:");
@@ -589,7 +594,7 @@ void MAC_TX() //payload size msb sent first
 		//frame was fully build
 		tx_ready_to_send = 1;
 		i=0;
-		
+		first_of_frame = 1;
 	}
 	
 	if(tx_ready_to_send && isPhyTxReady() && i < frame_size+30)
@@ -597,6 +602,11 @@ void MAC_TX() //payload size msb sent first
 		//printf("  ");
 		if(first_of_frame && temp->typeLength[0] == 0x08 && temp->typeLength[1] == 0x88&&!ACK)
 		{
+			if(again)
+			{
+				//printf("Again!!!!!!!!!!!!!!!!!!!!!");
+				again = 0;
+			}
 			HAL_TIM_Base_Start_IT(&htim2);
 			first_of_frame = 0;
 			//printf("\r\n");
@@ -668,7 +678,8 @@ int main(void)
 	printf("Press any key to start\r\n");
 	DllAlive = 1; //DLL is on!
 	__HAL_RCC_CRC_CLK_ENABLE();
-	__HAL_TIM_CLEAR_IT(&htim2 ,TIM_IT_UPDATE);
+	//__HAL_TIM_CLEAR_IT(&htim2 ,TIM_IT_UPDATE);
+	
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -773,6 +784,12 @@ static void MX_NVIC_Init(void)
   /* USART2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(USART2_IRQn);
+  /* TIM2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIM2_IRQn);
+  /* TIM3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(TIM3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIM3_IRQn);
 }
 
 /* CRC init function */
